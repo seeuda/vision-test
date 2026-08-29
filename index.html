@@ -138,23 +138,30 @@ function Home({ onStart, onCalib, onHistory, calibrated, records }) {
   );
 }
 
+// 信用卡長邊 85.6mm 常比手機螢幕橫向實際寬度還寬，改用直放比對「高度」，直向空間通常足夠。
 function Calibrate({ pxPerMm, onDone, onBack }) {
-  const [w, setW] = useState(Math.round(CARD_MM * pxPerMm));
+  const initH = Math.round(CARD_MM * pxPerMm);
+  const [h, setH] = useState(Math.min(760, Math.max(280, initH)));
+  const w = Math.round((h*53.98)/CARD_MM);
   return (
     <div>
       <TopBar title="螢幕校正" onBack={onBack} />
       <p style={{ lineHeight:1.8 }}>
-        將一張<strong>信用卡 / 健保卡</strong>橫放貼在下方框上，調整滑桿讓框的寬度與卡片完全相同。
+        將一張<strong>信用卡 / 健保卡「直放」</strong>（長邊朝上下）貼在下方直立的框上，
+        調整滑桿讓框的<strong>高度</strong>與卡片的長邊完全相同。
       </p>
-      <div style={{ width:w, height:Math.round((w*53.98)/CARD_MM), border:`3px solid ${accent}`, borderRadius:10,
-        background:"#fff", margin:"22px auto", display:"flex", alignItems:"center", justifyContent:"center",
-        color:"#9BAAA5", fontSize:13 }}>卡片對齊此框</div>
-      <input type="range" min={200} max={420} value={w} onChange={(e)=>setW(Number(e.target.value))}
+      <div style={{ width:w, height:h, border:`3px solid ${accent}`, borderRadius:10,
+        background:"#fff", margin:"22px auto" }} />
+      <p style={{ textAlign:"center", fontSize:13, color:"#9BAAA5", marginTop:-14 }}>卡片直放對齊此框</p>
+      <input type="range" min={280} max={760} value={h} onChange={(e)=>setH(Number(e.target.value))}
         style={{ width:"100%", accentColor:accent }} />
       <div style={{ display:"flex", gap:10, marginTop:8, justifyContent:"center" }}>
-        <Small onClick={()=>setW(w-1)}>−1</Small><Small onClick={()=>setW(w+1)}>+1</Small>
+        <Small onClick={()=>setH(h-1)}>−1</Small><Small onClick={()=>setH(h+1)}>+1</Small>
       </div>
-      <Btn primary style={{ marginTop:24 }} onClick={()=>onDone(w/CARD_MM)}>寬度一致，完成校正</Btn>
+      <Btn primary style={{ marginTop:24 }} onClick={()=>onDone(h/CARD_MM)}>長度一致，完成校正</Btn>
+      <p style={{ fontSize:12, color:"#7A8A85", lineHeight:1.7, marginTop:14 }}>
+        若框拉到最高仍比卡片短，把手機轉成橫向再試一次，此時螢幕的直向空間會變成橫向，通常足夠容納。
+      </p>
     </div>
   );
 }
