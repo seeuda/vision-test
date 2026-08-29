@@ -27,9 +27,10 @@ const store = {
 // ---------- 常數 ----------
 const CARD_MM = 85.6;
 const TAN5MIN = 0.00145444;
-const LEVELS = [0.1,0.2,0.3,0.4,0.5,0.6,0.8,1.0,1.2];
-const START_IDX = 2;
+const LEVELS = [0.05,0.1,0.2,0.3,0.4,0.5,0.6,0.8,1.0,1.2];
+const START_IDX = 3;
 const DIST_OPTIONS = [
+  { cm:25, label:"25 cm（低視力／長者近距）" },
   { cm:40, label:"40 cm（近距自測）" },
   { cm:50, label:"50 cm（手臂伸直）" },
   { cm:100, label:"1 公尺" },
@@ -42,6 +43,7 @@ const DIRS = [
   { deg:180, label:"左", arrow:"←" },
   { deg:270, label:"上", arrow:"↑" },
 ];
+const MAX_RENDER_PX = 300; // 視標框在窄螢幕手機上安全可顯示的最大寬度
 const ink="#16302B", accent="#0E7C66", paper="#F6F8F7", line="#D8E2DE";
 
 function OptoE({ sizePx, deg }) {
@@ -61,6 +63,13 @@ function sizePxFor(decimal, distCm, pxPerMm) {
   return ((distCm * 10 * TAN5MIN) / decimal) * pxPerMm;
 }
 
+// 視標最小可辨識的一筆劃 CSS px 門檻，隨手機螢幕的 devicePixelRatio 動態調整，
+// 避免用桌機標準把高密度手機螢幕能測到的等級砍掉。
+function minUnitPx() {
+  const dpr = (typeof window !== "undefined" && window.devicePixelRatio) || 2;
+  return Math.max(0.6, 1.8 / dpr);
+}
+
 async function loadStore() {
   let pxPerMm = 3.78, records = [], calibrated = false;
   try { const c = await store.get("vision:calib"); pxPerMm = JSON.parse(c.value).pxPerMm; calibrated = true; } catch(e){}
@@ -75,6 +84,7 @@ function App() {
   const [records, setRecords] = useState([]);
   const [distCm, setDistCm] = useState(50);
   const [plan, setPlan] = useState(["R","L"]);
+  const [lowVision, setLowVision] = useState(false);
   const [results, setResults] = useState({});
   const [saveMsg, setSaveMsg] = useState("");
 
@@ -104,9 +114,10 @@ function App() {
         {screen==="home" && <Home onStart={()=>setScreen(calibrated?"setup":"calib")} onCalib={()=>setScreen("calib")}
           onHistory={()=>setScreen("history")} calibrated={calibrated} records={records} />}
         {screen==="calib" && <Calibrate pxPerMm={pxPerMm} onDone={(v)=>{saveCalib(v);setScreen("setup");}} onBack={()=>setScreen("home")} />}
-        {screen==="setup" && <Setup distCm={distCm} setDistCm={setDistCm} plan={plan} setPlan={setPlan} pxPerMm={pxPerMm}
+        {screen==="setup" && <Setup distCm={distCm} setDistCm={setDistCm} plan={plan} setPlan={setPlan}
+          lowVision={lowVision} setLowVision={setLowVision} pxPerMm={pxPerMm}
           onBegin={()=>{setResults({});setSaveMsg("");setScreen("test");}} onBack={()=>setScreen("home")} />}
-        {screen==="test" && <TestFlow plan={plan} distCm={distCm} pxPerMm={pxPerMm}
+        {screen==="test" && <TestFlow plan={plan} distCm={distCm} pxPerMm={pxPerMm} lowVision={lowVision}
           onFinish={(res)=>{setResults(res);saveRecord(res);setScreen("result");}} onAbort={()=>setScreen("home")} />}
         {screen==="result" && <Result results={results} saveMsg={saveMsg} onHome={()=>setScreen("home")} onHistory={()=>setScreen("history")} />}
         {screen==="history" && <History records={records} onBack={()=>setScreen("home")} />}
@@ -166,10 +177,10 @@ function Calibrate({ pxPerMm, onDone, onBack }) {
   );
 }
 
-function Setup({ distCm, setDistCm, plan, setPlan, pxPerMm, onBegin, onBack }) {
+function Setup({ distCm, setDistCm, plan, setPlan, lowVision, setLowVision, pxPerMm, onBegin, onBack }) {
   const maxTestable = useMemo(() => {
     let m = null;
-    for (const v of LEVELS) if (sizePxFor(v, distCm, pxPerMm)/5 >= 1.8) m = v;
+    for (const v of LEVELS) if (sizePxFor(v, distCm, pxPerMm)/5 >= minUnitPx()) m = v;
     return m;
   }, [distCm, pxPerMm]);
   return (
@@ -182,8 +193,8 @@ function Setup({ distCm, setDistCm, plan, setPlan, pxPerMm, onBegin, onBack }) {
         {DIST_OPTIONS.map((d)=><option key={d.cm} value={d.cm}>{d.label}</option>)}
       </select>
       <p style={{ fontSize:13, color:"#4A5D57", lineHeight:1.7 }}>
-        此距離與螢幕大小下，最高可測到 <strong>{maxTestable ? maxTestable.toFixed(1) : "—"}</strong>。
-        距離越遠可測的視力值越高，但需維持距離固定。
+        此距離與螢幕大小下，最高可測到 <strong>{maxTestable ? (maxTestable<0.1 ? maxTestable.toFixed(2) : maxTestable.toFixed(1)) : "—"}</strong>。
+        距離越遠可測的視力值越高，但需維持距離固定；距離越近則越容易測到較低的等級。
       </p>
       <label style={{ fontWeight:700, fontSize:14, display:"block", marginTop:18 }}>檢查範圍</label>
       <div style={{ display:"flex", gap:8, marginTop:8 }}>
@@ -196,6 +207,23 @@ function Setup({ distCm, setDistCm, plan, setPlan, pxPerMm, onBegin, onBack }) {
           </button>
         ))}
       </div>
+      <label style={{ fontWeight:700, fontSize:14, display:"block", marginTop:18 }}>受檢者狀況</label>
+      <div style={{ display:"flex", gap:8, marginTop:8 }}>
+        {[{v:false,t:"一般（由 0.3 開始）"},{v:true,t:"長者／低視力（由最大符號開始）"}].map((o)=>(
+          <button key={String(o.v)} onClick={()=>{ setLowVision(o.v); if(o.v) setDistCm(25); }}
+            style={{ flex:1, padding:"10px 4px", borderRadius:10, fontSize:13,
+              border:`2px solid ${lowVision===o.v?accent:line}`,
+              background:lowVision===o.v?"#E7F2EF":"#fff", color:ink }}>
+            {o.t}
+          </button>
+        ))}
+      </div>
+      {lowVision && (
+        <p style={{ fontSize:13, color:"#4A5D57", lineHeight:1.7 }}>
+          已切換為近距離（25cm）並從最大符號開始，避免視力較差者要連續答錯好幾級才看得到符號。
+          若受檢者連最大符號都看不清楚，直接按「看不清楚」即可記錄結果，不用勉強猜。
+        </p>
+      )}
       <div style={{ background:"#fff", border:`1px solid ${line}`, borderRadius:12, padding:14, marginTop:20,
         fontSize:14, lineHeight:1.8 }}>
         <strong>檢查方式</strong><br/>
@@ -208,7 +236,7 @@ function Setup({ distCm, setDistCm, plan, setPlan, pxPerMm, onBegin, onBack }) {
   );
 }
 
-function TestFlow({ plan, distCm, pxPerMm, onFinish, onAbort }) {
+function TestFlow({ plan, distCm, pxPerMm, lowVision, onFinish, onAbort }) {
   const [eyeIdx, setEyeIdx] = useState(0);
   const [phase, setPhase] = useState("cover");
   const [resAcc, setResAcc] = useState({});
@@ -227,23 +255,25 @@ function TestFlow({ plan, distCm, pxPerMm, onFinish, onAbort }) {
     return (
       <div style={{ textAlign:"center", paddingTop:40 }}>
         <div style={{ fontSize:13, letterSpacing:4, color:accent, fontWeight:700 }}>{eyeIdx+1} / {plan.length}</div>
-        <h2 style={{ fontSize:26, margin:"14px 0" }}>檢查{testEye}</h2>
-        <p style={{ lineHeight:1.8, color:"#4A5D57" }}>
+        <h2 style={{ fontSize:lowVision?30:26, margin:"14px 0" }}>檢查{testEye}</h2>
+        <p style={{ lineHeight:1.8, color:"#4A5D57", fontSize:lowVision?17:15 }}>
           請用手掌輕輕蓋住<strong>{coverEye}</strong>，<br/>
           保持距離約 {distCm>=100 ? distCm/100+" 公尺" : distCm+" 公分"}。
         </p>
-        <Btn primary style={{ marginTop:24 }} onClick={()=>setPhase("run")}>已遮好，開始</Btn>
-        <Btn style={{ marginTop:12 }} onClick={onAbort}>取消檢查</Btn>
+        <Btn primary style={{ marginTop:24, fontSize:lowVision?20:17, padding:lowVision?"18px 0":"14px 0" }}
+          onClick={()=>setPhase("run")}>已遮好，開始</Btn>
+        <Btn style={{ marginTop:12, fontSize:lowVision?18:17, padding:lowVision?"16px 0":"14px 0" }}
+          onClick={onAbort}>取消檢查</Btn>
       </div>
     );
   }
-  return <EyeTest key={eye} eye={eye} distCm={distCm} pxPerMm={pxPerMm} onDone={handleEyeDone} />;
+  return <EyeTest key={eye} eye={eye} distCm={distCm} pxPerMm={pxPerMm} lowVision={lowVision} onDone={handleEyeDone} />;
 }
 
-function EyeTest({ eye, distCm, pxPerMm, onDone }) {
+function EyeTest({ eye, distCm, pxPerMm, lowVision, onDone }) {
   const testable = useMemo(
-    () => LEVELS.filter((v) => sizePxFor(v, distCm, pxPerMm)/5 >= 1.8), [distCm, pxPerMm]);
-  const startIdx = Math.min(START_IDX, testable.length - 1);
+    () => LEVELS.filter((v) => sizePxFor(v, distCm, pxPerMm)/5 >= minUnitPx()), [distCm, pxPerMm]);
+  const startIdx = lowVision ? 0 : Math.min(START_IDX, testable.length - 1);
   const [idx, setIdx] = useState(startIdx);
   const [passedMax, setPassedMax] = useState(null);
   const [descending, setDescending] = useState(false);
@@ -269,7 +299,7 @@ function EyeTest({ eye, distCm, pxPerMm, onDone }) {
   const levelFailed = () => {
     if (passedMax !== null) onDone(passedMax);
     else if (idx > 0) { setDescending(true); setIdx(idx-1); setCorrect(0); setWrong(0); nextOptotype(deg); }
-    else onDone(0);
+    else onDone(-level);
   };
 
   const answer = (ok) => {
@@ -281,33 +311,45 @@ function EyeTest({ eye, distCm, pxPerMm, onDone }) {
 
   return (
     <div style={{ textAlign:"center" }}>
-      <div style={{ display:"flex", justifyContent:"space-between", fontSize:13, color:"#4A5D57", marginBottom:6 }}>
+      <div style={{ display:"flex", justifyContent:"space-between", fontSize:lowVision?16:13, color:"#4A5D57", marginBottom:6 }}>
         <span>{eye==="R"?"右眼":"左眼"}・遮住{eye==="R"?"左":"右"}眼</span>
-        <span>目前等級 {level.toFixed(1)}</span>
+        <span>目前等級 {level<0.1 ? level.toFixed(2) : level.toFixed(1)}</span>
       </div>
-      <div style={{ background:"#fff", border:`1px solid ${line}`, borderRadius:16, height:280,
-        display:"flex", alignItems:"center", justifyContent:"center" }}>
-        <OptoE sizePx={Math.max(sizePx,3)} deg={deg} />
-      </div>
-      <p style={{ fontSize:14, color:"#4A5D57", margin:"14px 0 10px" }}>E 的開口朝哪個方向？</p>
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, maxWidth:260, margin:"0 auto" }}>
-        <span /><DirBtn d={DIRS[3]} onPick={(d)=>answer(d===deg)} /><span />
-        <DirBtn d={DIRS[2]} onPick={(d)=>answer(d===deg)} />
-        <DirBtn d={DIRS[1]} onPick={(d)=>answer(d===deg)} />
-        <DirBtn d={DIRS[0]} onPick={(d)=>answer(d===deg)} />
+      {sizePx > MAX_RENDER_PX ? (
+        <div style={{ background:"#FFF6F0", border:"1px solid #E8C9A8", borderRadius:16, padding:"24px 16px",
+          color:"#8A5A2A", fontSize:14, lineHeight:1.8 }}>
+          此距離下，這個等級的符號太大，螢幕放不下，無法準確測試。<br/>
+          請縮短觀看距離後重新開始這隻眼的檢查。
+        </div>
+      ) : (
+        <div style={{ background:"#fff", border:`1px solid ${line}`, borderRadius:16, minHeight:280, padding:10,
+          display:"flex", alignItems:"center", justifyContent:"center" }}>
+          <OptoE sizePx={Math.max(sizePx,3)} deg={deg} />
+        </div>
+      )}
+      <p style={{ fontSize:lowVision?17:14, color:"#4A5D57", margin:"14px 0 10px" }}>E 的開口朝哪個方向？</p>
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:lowVision?14:10,
+        maxWidth:lowVision?320:260, margin:"0 auto" }}>
+        <span /><DirBtn d={DIRS[3]} large={lowVision} onPick={(d)=>answer(d===deg)} /><span />
+        <DirBtn d={DIRS[2]} large={lowVision} onPick={(d)=>answer(d===deg)} />
+        <DirBtn d={DIRS[1]} large={lowVision} onPick={(d)=>answer(d===deg)} />
+        <DirBtn d={DIRS[0]} large={lowVision} onPick={(d)=>answer(d===deg)} />
       </div>
       <button onClick={()=>answer(false)}
-        style={{ marginTop:16, background:"none", border:"none", color:"#B04A3A", fontSize:15, textDecoration:"underline" }}>
+        style={{ marginTop:16, background:"none", border:"none", color:"#B04A3A",
+          fontSize:lowVision?19:15, fontWeight:lowVision?700:400, textDecoration:"underline",
+          padding:lowVision?"8px 4px":0 }}>
         看不清楚
       </button>
     </div>
   );
 }
 
-function DirBtn({ d, onPick }) {
+function DirBtn({ d, onPick, large }) {
   return (
     <button onClick={()=>onPick(d.deg)} aria-label={`開口朝${d.label}`}
-      style={{ padding:"16px 0", fontSize:24, borderRadius:12, border:`1px solid ${line}`, background:"#fff", color:ink }}>
+      style={{ padding:large?"26px 0":"16px 0", fontSize:large?34:24, borderRadius:12,
+        border:`1px solid ${line}`, background:"#fff", color:ink }}>
       {d.arrow}
     </button>
   );
@@ -315,8 +357,9 @@ function DirBtn({ d, onPick }) {
 
 function fmtScore(v) {
   if (v === null || v === undefined) return "—";
+  if (v < 0) { const abs = -v; return `< ${abs < 0.1 ? abs.toFixed(2) : abs.toFixed(1)}`; }
   if (v === 0) return "< 0.1";
-  return v.toFixed(1);
+  return v < 0.1 ? v.toFixed(2) : v.toFixed(1);
 }
 
 function Result({ results, saveMsg, onHome, onHistory }) {
