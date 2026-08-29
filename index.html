@@ -63,11 +63,12 @@ function sizePxFor(decimal, distCm, pxPerMm) {
   return ((distCm * 10 * TAN5MIN) / decimal) * pxPerMm;
 }
 
-// 視標最小可辨識的一筆劃 CSS px 門檻，隨手機螢幕的 devicePixelRatio 動態調整，
-// 避免用桌機標準把高密度手機螢幕能測到的等級砍掉。
+// 視標最小可辨識的一筆劃門檻，換算成實體像素約 2.1px（實測校正後的數字，
+// 舊版 1.8 會讓 1.0 在 devicePixelRatio=2 的機型上剛好卡在邊緣被誤判為可測）。
+// 門檻仍依 devicePixelRatio 動態換算，螢幕密度越高在同距離下能測到的等級也越高。
 function minUnitPx() {
   const dpr = (typeof window !== "undefined" && window.devicePixelRatio) || 2;
-  return Math.max(0.6, 1.8 / dpr);
+  return Math.max(0.6, 2.1 / dpr);
 }
 
 async function loadStore() {
@@ -222,14 +223,16 @@ function Setup({ distCm, setDistCm, plan, setPlan, lowVision, setLowVision, pxPe
         <p style={{ fontSize:13, color:"#4A5D57", lineHeight:1.7 }}>
           已切換為近距離（25cm）並從最大符號開始，避免視力較差者要連續答錯好幾級才看得到符號。
           若受檢者連最大符號都看不清楚，直接按「看不清楚」即可記錄結果，不用勉強猜。
+          白內障患者常對強光較敏感，亮度不必刻意調到最大，舒適、每次一致即可。
         </p>
       )}
       <div style={{ background:"#fff", border:`1px solid ${line}`, borderRadius:12, padding:14, marginTop:20,
         fontSize:14, lineHeight:1.8 }}>
         <strong>檢查方式</strong><br/>
-        1. 用手掌輕蓋住「不檢查」的那隻眼（勿壓眼球）。<br/>
-        2. 看螢幕上 E 的<strong>開口方向</strong>，點選下方對應箭頭。<br/>
-        3. 看不清楚就按「看不清楚」，不要用猜的瞇眼看。
+        1. 關閉手機的自動亮度調整，把亮度固定在同一個等級（一般情況建議接近最大），環境光線也盡量一致。<br/>
+        2. 用手掌輕蓋住「不檢查」的那隻眼（勿壓眼球）。<br/>
+        3. 看螢幕上 E 的<strong>開口方向</strong>，點選下方對應箭頭。<br/>
+        4. 看不清楚就按「看不清楚」，不要用猜的瞇眼看。
       </div>
       <Btn primary style={{ marginTop:20 }} onClick={onBegin}>開始</Btn>
     </div>
@@ -376,7 +379,9 @@ function Result({ results, saveMsg, onHome, onHistory }) {
       </div>
       {saveMsg && <p style={{ fontSize:13, color:"#4A5D57", marginTop:12 }}>{saveMsg}</p>}
       <p style={{ fontSize:12, color:"#7A8A85", lineHeight:1.7, marginTop:16 }}>
-        結果受螢幕亮度、環境光線與距離影響，僅供參考。兩眼差異明顯或多次結果下滑時，建議安排專業檢查。
+        結果受螢幕亮度、環境光線、距離與手機機型影響，僅供參考。
+        建議每次測試固定亮度、距離與同一支手機，前後比較才有意義。
+        兩眼差異明顯或多次結果下滑時，建議安排專業檢查。
       </p>
       <Btn primary style={{ marginTop:18 }} onClick={onHistory}>查看歷史紀錄</Btn>
       <Btn style={{ marginTop:12 }} onClick={onHome}>回首頁</Btn>
