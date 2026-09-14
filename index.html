@@ -27,8 +27,8 @@ const store = {
 // ---------- 常數 ----------
 const CARD_MM = 85.6;
 const TAN5MIN = 0.00145444;
-const LEVELS = [0.05,0.1,0.2,0.3,0.4,0.5,0.6,0.8,1.0,1.2];
-const START_IDX = 3;
+const LEVELS = [0.01,0.02,0.05,0.1,0.2,0.3,0.4,0.5,0.6,0.8,1.0,1.2];
+const START_IDX = 5;
 const DIST_OPTIONS = [
   { cm:25, label:"25 cm（低視力／長者近距）" },
   { cm:40, label:"40 cm（近距自測）" },
@@ -43,7 +43,12 @@ const DIRS = [
   { deg:180, label:"左", arrow:"←" },
   { deg:270, label:"上", arrow:"↑" },
 ];
-const MAX_RENDER_PX = 300; // 視標框在窄螢幕手機上安全可顯示的最大寬度
+// 視標框安全可顯示的最大寬度：依實際螢幕寬度動態算，避免固定值在較寬手機/平板上
+// 把可測範圍鎖太低（螢幕明明放得下卻不給測）。
+function maxRenderPx() {
+  const vw = (typeof window !== "undefined" && window.innerWidth) || 380;
+  return Math.max(200, Math.min(480, vw) - 46);
+}
 const ink="#16302B", accent="#0E7C66", paper="#F6F8F7", line="#D8E2DE";
 const EYE_LABELS = { R:"右眼", L:"左眼", B:"雙眼綜合" };
 const EYE_COLORS = { R:accent, L:"#C77B30", B:"#5B6FB0" };
@@ -339,7 +344,7 @@ function EyeTest({ eye, distCm, pxPerMm, lowVision, onDone }) {
         <span>{eye==="R"?"右眼・遮住左眼":eye==="L"?"左眼・遮住右眼":"雙眼綜合（不遮眼）"}</span>
         <span>目前等級 {level<0.1 ? level.toFixed(2) : level.toFixed(1)}</span>
       </div>
-      {sizePx > MAX_RENDER_PX ? (
+      {sizePx > maxRenderPx() ? (
         <div style={{ background:"#FFF6F0", border:"1px solid #E8C9A8", borderRadius:16, padding:"24px 16px",
           color:"#8A5A2A", fontSize:14, lineHeight:1.8 }}>
           此距離下，這個等級的符號太大，螢幕放不下，無法準確測試。<br/>
