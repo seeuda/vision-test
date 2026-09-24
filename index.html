@@ -27,8 +27,11 @@ const store = {
 // ---------- 常數 ----------
 const CARD_MM = 85.6;
 const TAN5MIN = 0.00145444;
-const LEVELS = [0.01,0.02,0.05,0.1,0.2,0.3,0.4,0.5,0.6,0.8,1.0,1.2];
-const START_IDX = 5;
+// 國際標準十進位視力表級距（每級約 0.1 logMAR，固定比例 ~1.26 倍），
+// 取代之前隨手挑的整數，讓每一關的難度增量一致，不會忽大忽小。
+const LEVELS = [0.01,0.0125,0.016,0.02,0.025,0.032,0.04,0.05,0.063,0.08,
+  0.1,0.125,0.16,0.2,0.25,0.32,0.4,0.5,0.63,0.8,1.0,1.25];
+const START_IDX = 15; // 從 0.32（約等於舊版的 0.3）開始
 const DIST_OPTIONS = [
   { cm:25, label:"25 cm（低視力／長者近距）" },
   { cm:40, label:"40 cm（近距自測）" },
@@ -76,6 +79,13 @@ function sizePxFor(decimal, distCm, pxPerMm) {
 function minUnitPx() {
   const dpr = (typeof window !== "undefined" && window.devicePixelRatio) || 2;
   return Math.max(0.6, 2.1 / dpr);
+}
+
+// 格式化小數視力數值：直接印出精確值，避免 0.125、0.63 這類新增標準級距
+// 被舊的「>=0.1 顯示一位小數」邏輯四捨五入到失真。
+function fmtLevel(v) {
+  const s = (Math.round(v * 10000) / 10000).toString();
+  return s.includes(".") ? s : s + ".0";
 }
 
 async function loadStore() {
@@ -209,7 +219,7 @@ function Setup({ distCm, setDistCm, plan, setPlan, lowVision, setLowVision, pxPe
         {DIST_OPTIONS.map((d)=><option key={d.cm} value={d.cm}>{d.label}</option>)}
       </select>
       <p style={{ fontSize:13, color:"#4A5D57", lineHeight:1.7 }}>
-        此距離與螢幕大小下，最高可測到 <strong>{maxTestable ? (maxTestable<0.1 ? maxTestable.toFixed(2) : maxTestable.toFixed(1)) : "—"}</strong>。
+        此距離與螢幕大小下，最高可測到 <strong>{maxTestable ? fmtLevel(maxTestable) : "—"}</strong>。
         距離越遠可測的視力值越高，但需維持距離固定；距離越近則越容易測到較低的等級。
       </p>
       <label style={{ fontWeight:700, fontSize:14, display:"block", marginTop:18 }}>檢查範圍</label>
@@ -232,7 +242,7 @@ function Setup({ distCm, setDistCm, plan, setPlan, lowVision, setLowVision, pxPe
       )}
       <label style={{ fontWeight:700, fontSize:14, display:"block", marginTop:18 }}>受檢者狀況</label>
       <div style={{ display:"flex", gap:8, marginTop:8 }}>
-        {[{v:false,t:"一般（由 0.3 開始）"},{v:true,t:"長者／低視力（由最大符號開始）"}].map((o)=>(
+        {[{v:false,t:"一般（由 0.32 開始）"},{v:true,t:"長者／低視力（由最大符號開始）"}].map((o)=>(
           <button key={String(o.v)} onClick={()=>{ setLowVision(o.v); if(o.v) setDistCm(25); }}
             style={{ flex:1, padding:"10px 4px", borderRadius:10, fontSize:13,
               border:`2px solid ${lowVision===o.v?accent:line}`,
@@ -342,7 +352,7 @@ function EyeTest({ eye, distCm, pxPerMm, lowVision, onDone }) {
     <div style={{ textAlign:"center" }}>
       <div style={{ display:"flex", justifyContent:"space-between", fontSize:lowVision?16:13, color:"#4A5D57", marginBottom:6 }}>
         <span>{eye==="R"?"右眼・遮住左眼":eye==="L"?"左眼・遮住右眼":"雙眼綜合（不遮眼）"}</span>
-        <span>目前等級 {level<0.1 ? level.toFixed(2) : level.toFixed(1)}</span>
+        <span>目前等級 {fmtLevel(level)}</span>
       </div>
       {sizePx > maxRenderPx() ? (
         <div style={{ background:"#FFF6F0", border:"1px solid #E8C9A8", borderRadius:16, padding:"24px 16px",
@@ -386,9 +396,9 @@ function DirBtn({ d, onPick, large }) {
 
 function fmtScore(v) {
   if (v === null || v === undefined) return "—";
-  if (v < 0) { const abs = -v; return `< ${abs < 0.1 ? abs.toFixed(2) : abs.toFixed(1)}`; }
+  if (v < 0) return `< ${fmtLevel(-v)}`;
   if (v === 0) return "< 0.1";
-  return v < 0.1 ? v.toFixed(2) : v.toFixed(1);
+  return fmtLevel(v);
 }
 
 function Result({ results, saveMsg, onHome, onHistory }) {
@@ -516,7 +526,7 @@ function History({ records, onBack, onDelete }) {
 }
 
 function Chart({ pts }) {
-  const W=420, H=180, P=30, maxV=1.2;
+  const W=420, H=180, P=30, maxV=1.25;
   const x = (i)=> P + (pts.length===1 ? (W-2*P)/2 : (i*(W-2*P))/(pts.length-1));
   const y = (v)=> H - P - ((v??0)/maxV)*(H-2*P);
   const path = (key,color) => {
@@ -534,10 +544,10 @@ function Chart({ pts }) {
   return (
     <div style={{ background:"#fff", border:`1px solid ${line}`, borderRadius:14, padding:8 }}>
       <svg viewBox={`0 0 ${W} ${H}`} style={{ width:"100%", display:"block" }}>
-        {[0.2,0.4,0.6,0.8,1.0,1.2].map((v)=>(
+        {[0.2,0.4,0.6,0.8,1.0,1.25].map((v)=>(
           <g key={v}>
             <line x1={P} x2={W-P} y1={y(v)} y2={y(v)} stroke={line} strokeWidth="1" />
-            <text x={4} y={y(v)+4} fontSize="10" fill="#7A8A85">{v.toFixed(1)}</text>
+            <text x={4} y={y(v)+4} fontSize="10" fill="#7A8A85">{fmtLevel(v)}</text>
           </g>
         ))}
         {path("R", EYE_COLORS.R)}
