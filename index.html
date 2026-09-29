@@ -402,7 +402,7 @@ function fmtScore(v) {
 }
 
 function Result({ results, saveMsg, onHome, onHistory }) {
-  const keys = Object.keys(results).filter((k) => EYE_LABELS[k]);
+  const keys = ["L","R","B"].filter((k) => k in results);
   return (
     <div style={{ textAlign:"center", paddingTop:30 }}>
       <h2 style={{ fontSize:24 }}>本次結果</h2>
@@ -453,8 +453,8 @@ function History({ records, onBack, onDelete }) {
   };
 
   const csv = () => {
-    const head = "日期時間,右眼,左眼,雙眼綜合,距離cm\n";
-    const rows = records.map((r)=>`${r.t},${r.R??""},${r.L??""},${r.B??""},${r.distCm}`).join("\n");
+    const head = "日期時間,左眼,右眼,雙眼綜合,距離cm\n";
+    const rows = records.map((r)=>`${r.t},${r.L??""},${r.R??""},${r.B??""},${r.distCm}`).join("\n");
     const blob = new Blob(["\uFEFF"+head+rows], { type:"text/csv;charset=utf-8" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
@@ -511,8 +511,8 @@ function History({ records, onBack, onDelete }) {
                   </span>
                 </span>
                 <span style={{ marginLeft:"auto", textAlign:"right" }}>
-                  {r.R!==null && r.R!==undefined && <React.Fragment>右 <strong>{fmtScore(r.R)}</strong>{" "}</React.Fragment>}
                   {r.L!==null && r.L!==undefined && <React.Fragment>左 <strong>{fmtScore(r.L)}</strong>{" "}</React.Fragment>}
+                  {r.R!==null && r.R!==undefined && <React.Fragment>右 <strong>{fmtScore(r.R)}</strong>{" "}</React.Fragment>}
                   {r.B!==null && r.B!==undefined && <React.Fragment>雙 <strong>{fmtScore(r.B)}</strong></React.Fragment>}
                 </span>
               </div>
@@ -555,8 +555,8 @@ function Chart({ pts }) {
         {path("B", EYE_COLORS.B)}
       </svg>
       <div style={{ display:"flex", gap:16, justifyContent:"center", fontSize:12, padding:"4px 0 6px" }}>
-        <span style={{ color:EYE_COLORS.R }}>● 右眼</span>
         <span style={{ color:EYE_COLORS.L }}>● 左眼</span>
+        <span style={{ color:EYE_COLORS.R }}>● 右眼</span>
         {hasB && <span style={{ color:EYE_COLORS.B }}>● 雙眼綜合</span>}
       </div>
     </div>
