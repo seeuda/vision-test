@@ -37,4 +37,4 @@
 
 ## 授權
 
-個人／家庭用途，沒有特別授權限制。
+MIT License，詳見 [LICENSE](LICENSE)。
